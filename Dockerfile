@@ -22,5 +22,5 @@ RUN chmod 755 /opt/startServices.sh
 ADD scripts /opt/readKik/
 RUN chmod 755 -R /opt/readKik/
 ################################################################################
-# CMD ["/opt/readKik/readData"]   # Used when deployed
-CMD [ "/opt/startServices.sh" ] # Only used for dev and testing
+CMD ["/opt/readKik/readData"]   # Used when deployed
+# CMD [ "/opt/startServices.sh" ] # Only used for dev and testing
