@@ -1,0 +1,224 @@
+#!/usr/bin/perl
+################################################################################
+# libdbd-sqlite3-perl
+# libdbd-mysql-perl
+############################
+# Set to 1 to clear existing data prior to loading
+$truncateTables = 0;
+############################
+$sourceFolder = "/data";
+$doneFolder = "/data/DONE";
+mkdir($doneFolder);
+################################################################################
+use DBI;
+use Data::Dumper;
+################################################################################
+$debug = 0;
+&readConfig;
+&dbInit;
+################################################################################
+opendir (DIR, $sourceFolder);
+my @buFolders = readdir(DIR);
+@buFolders = sort(@buFolders);
+closedir (DIR);
+foreach (@buFolders)
+{
+	my $buFolder = $_;
+	if ((substr($buFolder,0,1) ne ".") && (!-f $sourceFolder . "/" . $buFolder) && ($buFolder ne "DONE"))
+	{
+		opendir (DIR, $sourceFolder . "/" . $buFolder);
+		my @buFiles = readdir (DIR);
+		closedir (DIR);
+		foreach (@buFiles)
+		{
+			my $buFile = $_;
+			if (substr($buFile,-7) eq ".backup")
+			{
+				&processBU($buFolder, $buFile);
+			}
+		}
+		`mv $sourceFolder/$buFolder $doneFolder`;
+	}
+}
+################################################################################
+################################################################################
+################################################################################
+sub processBU
+{
+	my ($buFolder, $buFile) = @_;
+	print "Processing Backup: $buFolder/$buFile\n";
+	#######
+	undef($sql);
+	my $sql = &openSQLite($sourceFolder . "/" . $buFolder . "/" . $buFile);
+	##########
+	my @tables = &readTables($sql);
+	foreach (@tables)
+	{
+		my $table = $_;
+		my $schemaData = &readTableSchema($sql,$table);
+		#####
+		my $twc;
+		if ($table ne "sqlite_sequence")
+		{
+			print "\tTable: $table\n";
+			#####
+			if ($truncateTables)
+			{
+				$truncSQL = "TRUNCATE Kik.$table";
+				if (!($truncTable = $dbh->prepare($truncSQL))) { print "Unable to prepare :: $truncSQL\n"; 	exit; }
+				$truncTable->execute();
+				print "\t\tTruncated\n";
+			}
+			$twc = &readTableData($sql, $table, $schemaData);
+		}
+		print "\t\tWrote: $twc\n";
+	}
+}
+
+exit;
+
+################################################################################
+################################################################################
+sub readTableData
+{
+ 	my ($sql, $tableName, $schemaData) = @_;
+ 	#####
+	my $twc = 0;
+	#####
+ 	my $insertCMD = "INSERT IGNORE INTO Kik.$tableName (";
+ 	#####
+ 	my $selectCMD = "SELECT ";
+ 	foreach (@{$schemaData->{$tableName}})
+ 	{
+ 		 $selectCMD .= " $_,";
+ 		 $insertCMD .= "$_,";
+ 	}
+ 	chop $selectCMD;
+ 	chop $insertCMD;
+ 	$selectCMD .= " FROM $tableName";
+ 	$insertCMD .= ") VALUES (";
+ 	$insertCMD_ORIG = $insertCMD;
+ 	#########
+ 	if (!($getTableData = $sql->prepare($selectCMD))) { print "Unable to prepare :: $getTableData\n"; 	exit; }
+ 	if ($getTableData->execute())
+ 	{
+ 		while (my @tableData = $getTableData->fetchrow_array())
+ 		{
+ 			# print "TABLE DATA :: " . Dumper(@tableData) . "\n";
+ 			$insertCMD = $insertCMD_ORIG;
+ 			foreach (@tableData)
+ 			{
+ 				my $fieldData = $_;
+ 				$fieldData =~ s/\\/\\\\/g;
+ 				$fieldData =~ s/'/\\'/g;
+ 				$insertCMD .= "'$fieldData',";
+ 			}
+ 			chop $insertCMD;
+ 			$insertCMD .= ");";
+ 			# print "===================\n";
+ 			# print "INSERT :: $insertCMD\n";
+ 			# print "===================\n";
+ 			if (!($insertData = $dbh->prepare($insertCMD))) { print "Unable to prepare :: $insertCMD\n"; 	exit; }
+ 			$insertData->execute();
+ 			$twc ++;
+ 		}
+ 	}
+	#####
+	return $twc;
+}
+################################################################################
+################################################################################
+sub readTableSchema
+{
+	my ($sql,$table) = @_;
+	#########
+	my $schemaData;
+	# my ($table) = @_;
+	my $getTableSchema_SQL = "SELECT  m.name as table_name, p.name as column_name FROM sqlite_master AS m JOIN pragma_table_info(m.name) AS p ORDER BY m.name, p.cid";
+	if (!($getTableSchema = $sql->prepare($getTableSchema_SQL))) { print "Unable to prepare :: $getTableSchema_SQL\n"; 	exit; }
+	if ($getTableSchema->execute())
+	{
+		while (my ($tableName, $colName) = $getTableSchema->fetchrow_array())
+		{
+			push(@{$schemaData->{$tableName}}, $colName);
+		}
+	}
+	#########
+	return $schemaData;
+}
+################################################################################
+################################################################################
+sub readTables
+{
+	my ($sql) = @_;
+	#########
+	my @tables;
+	my $getTableList_SQL = "SELECT name FROM sqlite_master";
+	if (!($getTableList = $sql->prepare($getTableList_SQL))) { print "Unable to prepare :: $getTableList_SQL\n"; 	exit; }
+	if ($getTableList->execute())
+	{
+		while (my ($tableName) = $getTableList->fetchrow_array())
+		{
+			push(@tables, $tableName);
+		}
+	}
+	return @tables;
+}
+################################################################################
+################################################################################
+sub openSQLite
+{
+	my ($sourceFile) = @_;
+	#########
+	my $driver   = "SQLite";
+	my $database = $sourceFile;
+	my $dsn = "dbi:$driver:dbname=$database";
+	my $userid = "";
+	my $password = "";
+	my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 }) or die $DBI::errstr;
+	return $dbh;
+}
+################################################################################
+################################################################################
+sub dbInit
+{
+	$database_port = "3306";
+	#########################
+	$database      = $config->{'dbName'};
+    $database_srvr = $config->{'dbServer'};
+    $database_user = $config->{'dbUser'};
+    $database_pass = $config->{'dbPass'};
+    #########################
+	my $driver = "mysql";
+	#####
+	my $dsn = "DBI:$driver:database=$database:host=$database_srvr;port=$database_port";
+	#####
+	%{$attribs->{"RaiseError"}} = 1;
+	#####
+	if (!($dbh = DBI->connect($dsn, $database_user, $database_pass,{PrintError => 1,RaiseError => 1,AutoCommit => 1,ShowErrorStatement=>1}))) {print "Error connecting to $database_srvr.\n"; exit; };
+}
+################################################################################
+################################################################################
+sub readConfig
+{
+	opendir (DIR, "/config");
+	my @configFiles = readdir(DIR);
+	closedir (DIR);
+	foreach (@configFiles)
+	{
+    	my $configKey = $_;
+		if ((substr($configKey,0,1) ne ".") && ($configKey !~ 'swp'))
+		{
+			open(IN, "/config/" . $configKey);
+			my $configValue = <IN>;
+			chomp $configValue;
+			close (IN);
+			$config->{$configKey} = $configValue;
+			#####
+			if ($debug)
+			{
+				print "CONFIG :: $configKey :: $configValue\n";
+			}
+		}
+	}
+}

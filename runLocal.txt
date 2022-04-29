@@ -1,0 +1,9 @@
+docker build processBlueKikBU -t jzmatrix/readkik
+
+docker run -t -i \
+	--mount type=bind,src=/mnt/c/Users/jason/OneDrive/FileShare/CodeRepo/Docker/processBlueKikBU/scripts,dst=/opt/readKik \
+	--mount type=bind,src=/mnt/d/BK,dst=/data \
+	--mount type=bind,src=/mnt/c/Users/jason/OneDrive/FileShare/CodeRepo/TEMP/buxfer_config,dst=/config jzmatrix/readkik bash
+
+jzmatrix/buxferreports
+jzmatrix/buxferreports
