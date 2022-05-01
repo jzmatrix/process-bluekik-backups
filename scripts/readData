@@ -46,32 +46,30 @@ foreach (@buFolders)
 	}
 }
 ################################################################################
-my $mime = MIME::Entity->build(Type  => 'multipart/alternative',
-                            Encoding => '-SUGGEST',
-                            From => $config->{'sg_emlFrom'},
-                            To => $config->{'sg_emlTo'},
-                            Subject => "BlueKik Backup Processor",
-							Debug => 1
-                            );
-
-$mime->attach(Type => 'text/plain',
-            Encoding =>'-SUGGEST',
-            Data => $mailBody);
-
-my $smtp = Net::SMTP->new('smtp.sendgrid.net',
-                        Port=> 587,
-                        Timeout => 20,
-                        Hello => $config->{'sg_apiDomain'},
-						Debug => $debug
-						);
-
-$smtp->auth('apikey', $config->{'sg_apiKey'});
-
-$smtp->mail($config->{'sg_emlFrom'});
-$smtp->to($config->{'sg_emlTo'});
-$smtp->data($mime->stringify);
-$smtp->quit();
-
+if ($mailBody)
+{
+	my $mime = MIME::Entity->build(Type  => 'multipart/alternative',
+    	                        Encoding => '-SUGGEST',
+    	                     	From => $config->{'sg_emlFrom'},
+	                            To => $config->{'sg_emlTo'},
+    	                        Subject => "BlueKik Backup Processor",
+								Debug => 1
+            	                );
+	$mime->attach(Type => 'text/plain',
+    	        Encoding =>'-SUGGEST',
+        	    Data => $mailBody);
+	my $smtp = Net::SMTP->new('smtp.sendgrid.net',
+    	                    Port=> 587,
+        	                Timeout => 20,
+            	            Hello => $config->{'sg_apiDomain'},
+							Debug => $debug
+							);
+	$smtp->auth('apikey', $config->{'sg_apiKey'});
+	$smtp->mail($config->{'sg_emlFrom'});
+	$smtp->to($config->{'sg_emlTo'});
+	$smtp->data($mime->stringify);
+	$smtp->quit();
+}
 
 ################################################################################
 ################################################################################
