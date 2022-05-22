@@ -13,14 +13,8 @@ RUN  apt-get autoremove && \
      chmod 0755 /var/run/sshd && \
      mkdir /opt/readKik
 ################################################################################
-# ADD config/authorized_keys /root/.ssh/authorized_keys
-ADD config/startServices.sh /opt/startServices.sh
-# ADD config/bash_profile /root/.bash_profile
-################################################################################
-RUN chmod 755 /opt/startServices.sh
-################################################################################
 ADD scripts /opt/readKik/
 RUN chmod 755 -R /opt/readKik/
 ################################################################################
 CMD ["/opt/readKik/readData"]   # Used when deployed
-# CMD [ "/opt/startServices.sh" ] # Only used for dev and testing
+
